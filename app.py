@@ -201,7 +201,7 @@ with st.sidebar:
 
     page = st.radio(
         "Navigation",
-        ["Home", "About Model", "Sample Images", "Upload Image", "Prediction"],
+        ["🏠 Home", "ℹ️ About Model", "🖼️ Image Selection"],
         label_visibility="collapsed",
     )
 
@@ -218,7 +218,7 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------------------
-# Session state for selected image
+# Session state for selected image / prediction flow
 # ---------------------------------------------------------------------
 if "selected_image" not in st.session_state:
     st.session_state.selected_image = None       # np.ndarray (RGB)
@@ -226,12 +226,24 @@ if "selected_image_name" not in st.session_state:
     st.session_state.selected_image_name = None
 if "selected_image_source" not in st.session_state:
     st.session_state.selected_image_source = None  # "sample" or "upload"
+if "show_prediction" not in st.session_state:
+    st.session_state.show_prediction = False
+if "scroll_to_preview" not in st.session_state:
+    st.session_state.scroll_to_preview = False
+
+
+def reset_selection():
+    st.session_state.selected_image = None
+    st.session_state.selected_image_name = None
+    st.session_state.selected_image_source = None
+    st.session_state.show_prediction = False
+    st.session_state.scroll_to_preview = False
 
 
 # ---------------------------------------------------------------------
 # PAGE: Home
 # ---------------------------------------------------------------------
-if page == "Home":
+if page == "🏠 Home":
     st.markdown('<p class="app-title">AResUNet</p>', unsafe_allow_html=True)
     st.markdown(
         '<p class="app-subtitle">Attention Residual U-Net for Building Segmentation</p>',
@@ -268,15 +280,15 @@ if page == "Home":
 
     st.markdown('<p class="section-header">Get Started</p>', unsafe_allow_html=True)
     st.write(
-        "Use the sidebar to explore the model architecture, browse sample "
-        "images, upload your own image, or jump straight to the Prediction "
-        "page to run building segmentation."
+        "Use the sidebar to explore the model architecture, or jump to "
+        "**Image Selection** to choose a sample image or upload your own and "
+        "run building segmentation."
     )
 
 # ---------------------------------------------------------------------
 # PAGE: About Model
 # ---------------------------------------------------------------------
-elif page == "About Model":
+elif page == "ℹ️ About Model":
     st.markdown('<p class="section-header">About AResUNet</p>', unsafe_allow_html=True)
 
     st.write(
@@ -322,247 +334,299 @@ elif page == "About Model":
         )
 
 # ---------------------------------------------------------------------
-# PAGE: Sample Images
+# PAGE: Image Selection (Sample Images + Upload Image + Prediction flow)
 # ---------------------------------------------------------------------
-elif page == "Sample Images":
-    st.markdown('<p class="section-header">Choose a Sample Image</p>', unsafe_allow_html=True)
+elif page == "🖼️ Image Selection":
 
-    samples = list_sample_images()
+    # ===================================================================
+    # PREDICTION SCREEN (shown after "Predict Now" is clicked)
+    # ===================================================================
+    if st.session_state.show_prediction:
 
-    if not samples:
-        st.info(
-            "No sample images found. Copy some images into the `sample_images/` "
-            "folder to see them listed here."
-        )
-    else:
-        cols = st.columns(4)
-        for i, fname in enumerate(samples):
-            path = os.path.join(SAMPLE_IMAGES_DIR, fname)
-            with cols[i % 4]:
-                try:
-                    img = read_rgb_image(path, is_path=True)
-                    st.image(img, caption=fname, use_container_width=True)
-                    if st.button("Select", key=f"select_{fname}"):
-                        st.session_state.selected_image = img
-                        st.session_state.selected_image_name = fname
-                        st.session_state.selected_image_source = "sample"
-                        st.success(f"Selected: {fname}. Go to **Prediction** page.")
-                except Exception as e:
-                    st.error(f"Could not load {fname}: {e}")
+        st.markdown('<p class="section-header">Run Prediction</p>', unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------
-# PAGE: Upload Image
-# ---------------------------------------------------------------------
-elif page == "Upload Image":
-    st.markdown('<p class="section-header">Upload Your Own Image</p>', unsafe_allow_html=True)
-
-    uploaded_file = st.file_uploader(
-        "Upload a PNG / JPG / JPEG image",
-        type=["png", "jpg", "jpeg"],
-    )
-
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.read()
-        img = read_rgb_image(file_bytes, is_path=False)
-
-        st.image(img, caption=uploaded_file.name, use_container_width=True)
-
-        if st.button("Use This Image"):
-            st.session_state.selected_image = img
-            st.session_state.selected_image_name = uploaded_file.name
-            st.session_state.selected_image_source = "upload"
-            st.success("Image selected. Go to **Prediction** page.")
-
-# ---------------------------------------------------------------------
-# PAGE: Prediction
-# ---------------------------------------------------------------------
-elif page == "Prediction":
-    st.markdown('<p class="section-header">Run Prediction</p>', unsafe_allow_html=True)
-
-    if model is None:
-        st.error(
-            "⚠️ Model checkpoint not found at `model/newmodel333 (2).pth`. "
-            "Please copy your trained model file into the `model/` folder and "
-            "restart the app."
-        )
-        st.stop()
-
-    if st.session_state.selected_image is None:
-        st.info(
-            "No image selected yet. Go to **Sample Images** or **Upload Image** "
-            "to choose one first."
-        )
-        st.stop()
-
-    image_rgb = st.session_state.selected_image
-    image_name = st.session_state.selected_image_name
-    source = st.session_state.selected_image_source
-
-    st.write(f"**Selected image:** `{image_name}`  ·  **Source:** {source}")
-
-    with st.spinner("Running inference..."):
-        binary_mask, inference_time = run_inference(model, image_rgb, device)
-
-    # Resize original image to match mask resolution for display/overlay
-    image_resized = cv2.resize(image_rgb, (IMG_SIZE, IMG_SIZE))
-    mask_display = mask_to_display(binary_mask)
-    overlay = make_overlay(image_resized, binary_mask)
-
-    # -------------------- Display: Image / Mask / Overlay --------------------
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("**Original Image**")
-        st.image(image_resized, use_container_width=True)
-    with col2:
-        st.markdown("**Predicted Mask**")
-        st.image(mask_display, use_container_width=True, clamp=True)
-    with col3:
-        st.markdown("**Overlay (Green = Building)**")
-        st.image(overlay, use_container_width=True)
-
-    # -------------------- Stats --------------------
-    st.markdown('<p class="section-header">Inference Details</p>', unsafe_allow_html=True)
-
-    bperc = building_percentage(binary_mask)
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(
-            f'<div class="metric-card"><h3>Inference Time</h3><p>{inference_time*1000:.1f} ms</p></div>',
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            f'<div class="metric-card"><h3>Device Used</h3><p>{device_name}</p></div>',
-            unsafe_allow_html=True,
-        )
-    with c3:
-        st.markdown(
-            f'<div class="metric-card"><h3>Image Resolution</h3><p>{IMG_SIZE} × {IMG_SIZE}</p></div>',
-            unsafe_allow_html=True,
-        )
-    with c4:
-        st.markdown(
-            f'<div class="metric-card"><h3>Building %</h3><p>{bperc:.2f}%</p></div>',
-            unsafe_allow_html=True,
-        )
-
-    # -------------------- Ground truth comparison --------------------
-    gt_path = None
-    if source == "sample":
-        gt_path = find_matching_mask(image_name)
-
-    if gt_path is not None:
-        st.markdown('<p class="section-header">Ground Truth Comparison</p>', unsafe_allow_html=True)
-
-        gt_raw = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
-        gt_mask = preprocess_mask(gt_raw)
-
-        dice = dice_score_np(binary_mask, gt_mask)
-        iou = iou_score_np(binary_mask, gt_mask)
-        acc = accuracy_score_np(binary_mask, gt_mask)
-        f1 = f1_score_np(binary_mask, gt_mask)
-
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.markdown(
-                f'<div class="metric-card"><h3>Dice Score</h3><p>{dice:.4f}</p></div>',
-                unsafe_allow_html=True,
+        if model is None:
+            st.error(
+                "⚠️ Model checkpoint not found at `model/newmodel333 (2).pth`. "
+                "Please copy your trained model file into the `model/` folder and "
+                "restart the app."
             )
-        with m2:
-            st.markdown(
-                f'<div class="metric-card"><h3>IoU</h3><p>{iou:.4f}</p></div>',
-                unsafe_allow_html=True,
+            st.stop()
+
+        if st.session_state.selected_image is None:
+            st.info(
+                "No image selected yet. Please go back and choose a sample "
+                "image or upload one first."
             )
-        with m3:
-            st.markdown(
-                f'<div class="metric-card"><h3>Pixel Accuracy</h3><p>{acc:.4f}</p></div>',
-                unsafe_allow_html=True,
-            )
-        with m4:
-            st.markdown(
-                f'<div class="metric-card"><h3>F1 Score</h3><p>{f1:.4f}</p></div>',
-                unsafe_allow_html=True,
-            )
+            st.stop()
 
-        st.markdown('<p class="section-header">Ground Truth Comparison</p>', unsafe_allow_html=True)
+        image_rgb = st.session_state.selected_image
+        image_name = st.session_state.selected_image_name
+        source = st.session_state.selected_image_source
 
-        error_map = make_error_map(gt_mask, binary_mask)
+        st.write(f"**Selected image:** `{image_name}`  ·  **Source:** {source}")
 
-        e1, e2, e3 = st.columns(3)
+        with st.spinner("Running inference..."):
+            binary_mask, inference_time = run_inference(model, image_rgb, device)
 
-        with e1:
-            st.markdown("**Ground Truth Mask**")
-            st.image(
-                mask_to_display(gt_mask),
-                use_container_width=True,
-                clamp=True
+        # Resize original image to match mask resolution for display/overlay
+        image_resized = cv2.resize(image_rgb, (IMG_SIZE, IMG_SIZE))
+        mask_display = mask_to_display(binary_mask)
+        overlay = make_overlay(image_resized, binary_mask)
 
-            )
-
-        with e2:
+        # -------------------- Display: Image / Mask / Overlay --------------------
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("**Original Image**")
+            st.image(image_resized, use_container_width=True)
+        with col2:
             st.markdown("**Predicted Mask**")
-            st.image(
-                mask_display,
-                use_container_width=True,
-                clamp=True
+            st.image(mask_display, use_container_width=True, clamp=True)
+        with col3:
+            st.markdown("**Overlay (Green = Building)**")
+            st.image(overlay, use_container_width=True)
+
+        # -------------------- Stats --------------------
+        st.markdown('<p class="section-header">Inference Details</p>', unsafe_allow_html=True)
+
+        bperc = building_percentage(binary_mask)
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(
+                f'<div class="metric-card"><h3>Inference Time</h3><p>{inference_time*1000:.1f} ms</p></div>',
+                unsafe_allow_html=True,
+            )
+        with c2:
+            st.markdown(
+                f'<div class="metric-card"><h3>Device Used</h3><p>{device_name}</p></div>',
+                unsafe_allow_html=True,
+            )
+        with c3:
+            st.markdown(
+                f'<div class="metric-card"><h3>Image Resolution</h3><p>{IMG_SIZE} × {IMG_SIZE}</p></div>',
+                unsafe_allow_html=True,
+            )
+        with c4:
+            st.markdown(
+                f'<div class="metric-card"><h3>Building %</h3><p>{bperc:.2f}%</p></div>',
+                unsafe_allow_html=True,
             )
 
-        with e3:
-            st.markdown("**Error Map**")
-            st.image(
-                error_map,
-                use_container_width=True
+        # -------------------- Ground truth comparison --------------------
+        gt_path = None
+        if source == "sample":
+            gt_path = find_matching_mask(image_name)
+
+        if gt_path is not None:
+            st.markdown('<p class="section-header">Ground Truth Comparison</p>', unsafe_allow_html=True)
+
+            gt_raw = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+            gt_mask = preprocess_mask(gt_raw)
+
+            dice = dice_score_np(binary_mask, gt_mask)
+            iou = iou_score_np(binary_mask, gt_mask)
+            acc = accuracy_score_np(binary_mask, gt_mask)
+            f1 = f1_score_np(binary_mask, gt_mask)
+
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.markdown(
+                    f'<div class="metric-card"><h3>Dice Score</h3><p>{dice:.4f}</p></div>',
+                    unsafe_allow_html=True,
+                )
+            with m2:
+                st.markdown(
+                    f'<div class="metric-card"><h3>IoU</h3><p>{iou:.4f}</p></div>',
+                    unsafe_allow_html=True,
+                )
+            with m3:
+                st.markdown(
+                    f'<div class="metric-card"><h3>Pixel Accuracy</h3><p>{acc:.4f}</p></div>',
+                    unsafe_allow_html=True,
+                )
+            with m4:
+                st.markdown(
+                    f'<div class="metric-card"><h3>F1 Score</h3><p>{f1:.4f}</p></div>',
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown('<p class="section-header">Ground Truth Comparison</p>', unsafe_allow_html=True)
+
+            error_map = make_error_map(gt_mask, binary_mask)
+
+            e1, e2, e3 = st.columns(3)
+
+            with e1:
+                st.markdown("**Ground Truth Mask**")
+                st.image(
+                    mask_to_display(gt_mask),
+                    use_container_width=True,
+                    clamp=True
+
+                )
+
+            with e2:
+                st.markdown("**Predicted Mask**")
+                st.image(
+                    mask_display,
+                    use_container_width=True,
+                    clamp=True
+                )
+
+            with e3:
+                st.markdown("**Error Map**")
+                st.image(
+                    error_map,
+                    use_container_width=True
+                )
+
+            st.markdown(
+                """
+                <span class="legend-box" style="background:#00ff00;"></span> True Positive &nbsp;&nbsp;
+                <span class="legend-box" style="background:#ff0000;"></span> False Positive &nbsp;&nbsp;
+                <span class="legend-box" style="background:#0000ff;"></span> False Negative &nbsp;&nbsp;
+                <span class="legend-box" style="background:#000000; border:1px solid #444;"></span> True Negative
+                """,
+                unsafe_allow_html=True,
             )
 
-        st.markdown(
-            """
-            <span class="legend-box" style="background:#00ff00;"></span> True Positive &nbsp;&nbsp;
-            <span class="legend-box" style="background:#ff0000;"></span> False Positive &nbsp;&nbsp;
-            <span class="legend-box" style="background:#0000ff;"></span> False Negative &nbsp;&nbsp;
-            <span class="legend-box" style="background:#000000; border:1px solid #444;"></span> True Negative
-            """,
-            unsafe_allow_html=True,
-        )
+            st.markdown(
+                """
+                <span class="legend-box" style="background:#00ff00;"></span> True Positive &nbsp;&nbsp;
+                <span class="legend-box" style="background:#ff0000;"></span> False Positive &nbsp;&nbsp;
+                <span class="legend-box" style="background:#0000ff;"></span> False Negative &nbsp;&nbsp;
+                <span class="legend-box" style="background:#000000; border:1px solid #444;"></span> True Negative
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info(
+                "No matching ground-truth mask found in `sample_masks/` for this "
+                "image. Metrics and error map are only available for sample "
+                "images that have a corresponding mask with the same filename."
+            )
 
-        st.markdown(
-            """
-            <span class="legend-box" style="background:#00ff00;"></span> True Positive &nbsp;&nbsp;
-            <span class="legend-box" style="background:#ff0000;"></span> False Positive &nbsp;&nbsp;
-            <span class="legend-box" style="background:#0000ff;"></span> False Negative &nbsp;&nbsp;
-            <span class="legend-box" style="background:#000000; border:1px solid #444;"></span> True Negative
-            """,
-            unsafe_allow_html=True,
-        )
+        # -------------------- Downloads --------------------
+        st.markdown('<p class="section-header">Downloads</p>', unsafe_allow_html=True)
+
+        d1, d2, d3 = st.columns(3)
+        with d1:
+            st.download_button(
+                "⬇️ Download Prediction (Mask)",
+                data=to_png_bytes(mask_display),
+                file_name=f"prediction_{os.path.splitext(image_name)[0]}.png",
+                mime="image/png",
+            )
+        with d2:
+            st.download_button(
+                "⬇️ Download Binary Mask",
+                data=to_png_bytes((binary_mask * 255).astype(np.uint8)),
+                file_name=f"binary_mask_{os.path.splitext(image_name)[0]}.png",
+                mime="image/png",
+            )
+        with d3:
+            st.download_button(
+                "⬇️ Download Overlay",
+                data=to_png_bytes(overlay),
+                file_name=f"overlay_{os.path.splitext(image_name)[0]}.png",
+                mime="image/png",
+            )
+
+        st.markdown("---")
+        if st.button("⬅ Select Another Image", use_container_width=True):
+            reset_selection()
+            st.rerun()
+
+    # ===================================================================
+    # IMAGE SELECTION SCREEN (Sample Images + Upload Image)
+    # ===================================================================
     else:
-        st.info(
-            "No matching ground-truth mask found in `sample_masks/` for this "
-            "image. Metrics and error map are only available for sample "
-            "images that have a corresponding mask with the same filename."
-        )
+        st.markdown('<p class="section-header">Image Selection</p>', unsafe_allow_html=True)
 
-    # -------------------- Downloads --------------------
-    st.markdown('<p class="section-header">Downloads</p>', unsafe_allow_html=True)
+        left_col, right_col = st.columns(2)
 
-    d1, d2, d3 = st.columns(3)
-    with d1:
-        st.download_button(
-            "⬇️ Download Prediction (Mask)",
-            data=to_png_bytes(mask_display),
-            file_name=f"prediction_{os.path.splitext(image_name)[0]}.png",
-            mime="image/png",
-        )
-    with d2:
-        st.download_button(
-            "⬇️ Download Binary Mask",
-            data=to_png_bytes((binary_mask * 255).astype(np.uint8)),
-            file_name=f"binary_mask_{os.path.splitext(image_name)[0]}.png",
-            mime="image/png",
-        )
-    with d3:
-        st.download_button(
-            "⬇️ Download Overlay",
-            data=to_png_bytes(overlay),
-            file_name=f"overlay_{os.path.splitext(image_name)[0]}.png",
-            mime="image/png",
-        )
+        # -------------------- Sample Images --------------------
+        with left_col:
+            st.markdown("### 📁 Sample Images")
+            samples = list_sample_images()
+
+            if not samples:
+                st.info(
+                    "No sample images found. Copy some images into the "
+                    "`sample_images/` folder to see them listed here."
+                )
+            else:
+                sample_cols = st.columns(3)
+                for i, fname in enumerate(samples):
+                    path = os.path.join(SAMPLE_IMAGES_DIR, fname)
+                    with sample_cols[i % 3]:
+                        try:
+                            img = read_rgb_image(path, is_path=True)
+                            st.image(img, caption=fname, use_container_width=True)
+                            if st.button("Select", key=f"select_{fname}"):
+                                st.session_state.selected_image = img
+                                st.session_state.selected_image_name = fname
+                                st.session_state.selected_image_source = "sample"
+                                st.session_state.show_prediction = False
+                                st.session_state.scroll_to_preview = True
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Could not load {fname}: {e}")
+
+        # -------------------- Upload Image --------------------
+        with right_col:
+            st.markdown("### ⬆️ Upload Image")
+
+            uploaded_file = st.file_uploader(
+                "Upload a PNG / JPG / JPEG image",
+                type=["png", "jpg", "jpeg"],
+            )
+
+            if uploaded_file is not None:
+                file_bytes = uploaded_file.read()
+                img = read_rgb_image(file_bytes, is_path=False)
+
+                st.image(img, caption=uploaded_file.name, use_container_width=True)
+
+                if st.button("Use This Image"):
+                    st.session_state.selected_image = img
+                    st.session_state.selected_image_name = uploaded_file.name
+                    st.session_state.selected_image_source = "upload"
+                    st.session_state.show_prediction = False
+                    st.session_state.scroll_to_preview = True
+                    st.rerun()
+
+        # -------------------- Selected Image Preview + Predict Now --------------------
+        if st.session_state.selected_image is not None:
+            st.markdown("---")
+            st.markdown('<div id="preview-anchor"></div>', unsafe_allow_html=True)
+            st.markdown('<p class="section-header">Selected Image Preview</p>', unsafe_allow_html=True)
+
+            preview_img = cv2.resize(st.session_state.selected_image, (IMG_SIZE, IMG_SIZE))
+            pc1, pc2, pc3 = st.columns([1, 1, 1])
+            with pc2:
+                st.image(preview_img, width=IMG_SIZE)
+            st.write(f"**Filename:** `{st.session_state.selected_image_name}`")
+
+            if st.button("🚀 Predict Now", use_container_width=True, type="primary"):
+                st.session_state.show_prediction = True
+                st.rerun()
+
+            if st.session_state.scroll_to_preview:
+                st.session_state.scroll_to_preview = False
+                st.markdown(
+                    """
+                    <script>
+                    setTimeout(function() {
+                        var anchor = window.parent.document.getElementById('preview-anchor');
+                        if (anchor) {
+                            anchor.scrollIntoView({behavior: 'smooth', block: 'start'});
+                        } else {
+                            window.parent.scrollTo(0, window.parent.document.body.scrollHeight);
+                        }
+                    }, 200);
+                    </script>
+                    """,
+                    unsafe_allow_html=True,
+                )
