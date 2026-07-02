@@ -74,7 +74,7 @@ st.markdown(
 
     .app-subtitle {
         font-size: 1.15rem;
-        color: #a9b4c0;
+        color: var(--text-color);
         margin-top: 0.2rem;
         margin-bottom: 1.2rem;
     }
@@ -106,7 +106,7 @@ st.markdown(
         font-weight: 700;
         margin-top: 1.2rem;
         margin-bottom: 0.6rem;
-        color: #e6e9ee;
+        color: var(--text-color);
         border-left: 4px solid #0072ff;
         padding-left: 10px;
     }
@@ -196,25 +196,31 @@ def to_png_bytes(arr: np.ndarray) -> bytes:
 # ---------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## 🏙️ AResUNet")
-    st.caption("Attention Residual U-Net")
+    st.markdown(
+        "<p style='color:var(--text-color); font-size:16px;'>Attention Residual U-Net</p>",
+        unsafe_allow_html=True
+    )
     st.markdown("---")
 
     page = st.radio(
         "Navigation",
-        ["🏠 Home", "ℹ️ About Model", "🖼️ Image Selection"],
+        ["🏠 Home", "🖼️ Predict Now"],
         label_visibility="collapsed",
     )
 
-    st.markdown("---")
+    # st.markdown("---")
     model, device, device_name = load_model()
 
-    if model is not None:
-        st.success(f"Model loaded ✅\n\nDevice: **{device_name}**")
-    else:
-        st.error("Model file not found ❌")
+    # if model is not None:
+    #     st.success(f"Model loaded ✅\n\nDevice: **{device_name}**")
+    # else:
+    #     st.error("Model file not found ❌")
 
-    st.markdown("---")
-    st.caption("Built with Streamlit · PyTorch")
+    # st.markdown("---")
+    st.markdown(
+        "<p style='color:var(--text-color);'>Built with Streamlit · PyTorch</p>",
+        unsafe_allow_html=True
+    )
 
 
 # ---------------------------------------------------------------------
@@ -288,55 +294,55 @@ if page == "🏠 Home":
 # ---------------------------------------------------------------------
 # PAGE: About Model
 # ---------------------------------------------------------------------
-elif page == "ℹ️ About Model":
-    st.markdown('<p class="section-header">About AResUNet</p>', unsafe_allow_html=True)
+# elif page == "ℹ️ About Model":
+#     st.markdown('<p class="section-header">About AResUNet</p>', unsafe_allow_html=True)
 
-    st.write(
-        "AResUNet (Attention Residual U-Net) extends a standard U-Net with "
-        "several enhancements aimed at improving building boundary accuracy "
-        "in satellite imagery segmentation:"
-    )
+#     st.write(
+#         "AResUNet (Attention Residual U-Net) extends a standard U-Net with "
+#         "several enhancements aimed at improving building boundary accuracy "
+#         "in satellite imagery segmentation:"
+#     )
 
-    st.markdown(
-        """
-- **Encoder:** ResNet-34 (via `segmentation_models_pytorch`)
-- **ASPP (Atrous Spatial Pyramid Pooling):** captures multi-scale context at the bottleneck
-- **Attention Gates:** suppress irrelevant skip-connection activations before decoding
-- **Decoder Blocks:** residual decoder blocks with dilated convolutions and Squeeze-and-Excitation (SE) attention
-- **Boundary Refinement Block:** dilated residual block to sharpen building edges
-- **MSFF (Multi-Scale Feature Fusion):** fuses multi-receptive-field features at the final decoder stage
-- **CBAM:** channel + spatial attention applied before the segmentation head
-- **Deep Supervision:** auxiliary heads on intermediate decoder stages during training (disabled at inference)
-        """
-    )
+#     st.markdown(
+#         """
+# - **Encoder:** ResNet-34 (via `segmentation_models_pytorch`)
+# - **ASPP (Atrous Spatial Pyramid Pooling):** captures multi-scale context at the bottleneck
+# - **Attention Gates:** suppress irrelevant skip-connection activations before decoding
+# - **Decoder Blocks:** residual decoder blocks with dilated convolutions and Squeeze-and-Excitation (SE) attention
+# - **Boundary Refinement Block:** dilated residual block to sharpen building edges
+# - **MSFF (Multi-Scale Feature Fusion):** fuses multi-receptive-field features at the final decoder stage
+# - **CBAM:** channel + spatial attention applied before the segmentation head
+# - **Deep Supervision:** auxiliary heads on intermediate decoder stages during training (disabled at inference)
+#         """
+#     )
 
-    st.markdown('<p class="section-header">Training Configuration</p>', unsafe_allow_html=True)
-    st.markdown(
-        f"""
-- **Input size:** {IMG_SIZE} × {IMG_SIZE}, RGB, normalized to [0, 1]
-- **Loss function:** weighted combination of BCE (0.3), Dice (0.5), and Focal Loss (0.2)
-- **Optimizer:** AdamW (lr = 1e-4, weight decay = 1e-4)
-- **Prediction threshold:** {THRESHOLD}
-- **Evaluation metrics:** Dice Score, IoU, Pixel Accuracy, F1 Score
-        """
-    )
+#     st.markdown('<p class="section-header">Training Configuration</p>', unsafe_allow_html=True)
+#     st.markdown(
+#         f"""
+# - **Input size:** {IMG_SIZE} × {IMG_SIZE}, RGB, normalized to [0, 1]
+# - **Loss function:** weighted combination of BCE (0.3), Dice (0.5), and Focal Loss (0.2)
+# - **Optimizer:** AdamW (lr = 1e-4, weight decay = 1e-4)
+# - **Prediction threshold:** {THRESHOLD}
+# - **Evaluation metrics:** Dice Score, IoU, Pixel Accuracy, F1 Score
+#         """
+#     )
 
-    if model is not None:
-        n_params = sum(p.numel() for p in model.parameters())
-        st.markdown('<p class="section-header">Loaded Checkpoint</p>', unsafe_allow_html=True)
-        st.write(f"**Parameters:** {n_params:,}")
-        st.write(f"**Checkpoint file:** `newmodel333 (2).pth`")
-        st.write(f"**Running on:** {device_name}")
-    else:
-        st.warning(
-            "Model checkpoint not found. Place `newmodel333 (2).pth` inside "
-            "the `model/` folder to load architecture details here."
-        )
+#     if model is not None:
+#         n_params = sum(p.numel() for p in model.parameters())
+#         st.markdown('<p class="section-header">Loaded Checkpoint</p>', unsafe_allow_html=True)
+#         st.write(f"**Parameters:** {n_params:,}")
+#         st.write(f"**Checkpoint file:** `newmodel333 (2).pth`")
+#         st.write(f"**Running on:** {device_name}")
+#     else:
+#         st.warning(
+#             "Model checkpoint not found. Place `newmodel333 (2).pth` inside "
+#             "the `model/` folder to load architecture details here."
+#         )
 
 # ---------------------------------------------------------------------
 # PAGE: Image Selection (Sample Images + Upload Image + Prediction flow)
 # ---------------------------------------------------------------------
-elif page == "🖼️ Image Selection":
+elif page == "🖼️ Predict Now":
 
     # ===================================================================
     # PREDICTION SCREEN (shown after "Predict Now" is clicked)
@@ -564,13 +570,39 @@ elif page == "🖼️ Image Selection":
                         try:
                             img = read_rgb_image(path, is_path=True)
                             st.image(img, caption=fname, use_container_width=True)
-                            if st.button("Select", key=f"select_{fname}"):
-                                st.session_state.selected_image = img
-                                st.session_state.selected_image_name = fname
-                                st.session_state.selected_image_source = "sample"
-                                st.session_state.show_prediction = False
-                                st.session_state.scroll_to_preview = True
-                                st.rerun()
+
+                            selected = (
+                                st.session_state.selected_image_name == fname
+                                and st.session_state.selected_image_source == "sample"
+                            )
+
+                            col1, col2 = st.columns(2)
+
+                            if selected:
+
+                                st.success("✅ Selected")
+
+                                if st.button(
+                                    "🚀 Predict",
+                                    key=f"predict_{fname}",
+                                    use_container_width=True
+                                ):
+                                    st.session_state.show_prediction = True
+                                    st.rerun()
+
+                            else:
+
+                                if st.button(
+                                    "Select",
+                                    key=f"select_{fname}",
+                                    use_container_width=True
+                                ):
+                                    st.session_state.selected_image = img
+                                    st.session_state.selected_image_name = fname
+                                    st.session_state.selected_image_source = "sample"
+                                    st.session_state.show_prediction = False
+                                    st.rerun()
+
                         except Exception as e:
                             st.error(f"Could not load {fname}: {e}")
 
